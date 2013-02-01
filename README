@@ -1,4 +1,4 @@
-pam_url - authenticate with webservers
+pam_totp - authenticate with webservers
 
 This software is opensource software licensed under the GNU Public License version 2.
 The author of this software is Sascha Thomas Spreitzer <sspreitzer (at) fedoraproject.org>.
@@ -11,11 +11,11 @@ USE THIS SOFTWARE WITH ABSOLUTELY NO GUARANTEE AND WARRANTY
 /etc/pam.d/sshd or /etc/pam.d/system-auth:
 
 [...]
-auth sufficient pam_url.so [debug] [config=/etc/pam_url.conf]
+auth required pam_totp.so [debug] [use_authtok] [config=/etc/pam_totp.conf]
 [...]
 
 This line forms the following url encoded POST data:
-user=<username>&passwd=<pass>&mode=<PAM_AUTH|PAM_ACCT|PAM_SESS|PAM_PASS>&PSK=secret&do=auth
+user=<username>&passwd=<pass>&mode=PAM_AUTH&PSK=secret&do=auth
 It should return either 200 OK with PSK in the body or 403 Forbidden if unsuccessful.
 
 Please take a look inside the examples directory.

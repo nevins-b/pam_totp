@@ -1,4 +1,4 @@
-To install pam_url type:
+To install pam_totp type:
 $ make clean all
 $ su -c "make install"
 

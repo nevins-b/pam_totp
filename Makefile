@@ -1,4 +1,4 @@
-# pam_url - GPLv2, Sascha Thomas Spreitzer, https://fedorahosted.org/pam_url
+# pam_totp - GPLv2, Sascha Thomas Spreitzer, https://fedorahosted.org/pam_totp
 
 libs		+= libcurl libconfig
 
@@ -9,8 +9,8 @@ LDFLAGS		:= -shared -lpam -pthread $(shell pkg-config --libs ${libs})
 arch		:= $(shell uname -m)
 pamlib		:= lib/security
 
-obj			:= pam_url.so
-objc		:= ${shell ls pam_url*.c}
+obj			:= pam_totp.so
+objc		:= ${shell ls pam_totp*.c}
 objo		:= ${objc:%.c=%.o}
 
 # If platform is AMD/Intel 64bit
@@ -34,7 +34,7 @@ clean:
 
 install:
 	install -D -m 755 ${obj} ${DESTDIR}/${pamlib}/${obj}
-	install -D -m 644 examples/pam_url.conf ${DESTDIR}/etc/pam_url.conf
+	install -D -m 644 examples/pam_totp.conf ${DESTDIR}/etc/pam_totp.conf
 
 uninstall:
 	rm -f ${DESTDIR}/${pamlib}/${obj}

@@ -1,6 +1,6 @@
-// pam_url - GPLv2, Sascha Thomas Spreitzer, https://fedorahosted.org/pam_url
+// pam_totpg - GPLv2, Sascha Thomas Spreitzer, https://fedorahosted.org/pam_totp
 
-#include "pam_url.h"
+#include "pam_totpg.h"
 
 PAM_EXTERN int pam_sm_setcred(pam_handle_t *pamh, int flags, int argc, const char **argv)
 { // by now, a dummy
@@ -10,7 +10,7 @@ PAM_EXTERN int pam_sm_setcred(pam_handle_t *pamh, int flags, int argc, const cha
 PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags,
                                    int argc, const char **argv)
 {
-	pam_url_opts opts;
+	pam_totpg_opts opts;
 
 	if ( PAM_SUCCESS != pam_get_item(pamh, PAM_USER, &opts.user) )
 	{

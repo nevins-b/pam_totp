@@ -1,6 +1,6 @@
-// pam_url - GPLv2, Sascha Thomas Spreitzer, https://fedorahosted.org/pam_url
+// pam_totpg - GPLv2, Sascha Thomas Spreitzer, https://fedorahosted.org/pam_totpg
 
-#include "pam_url.h"
+#include "pam_totpg.h"
 #include <stdio.h>
 #include <stdint.h>
 
@@ -13,13 +13,13 @@ void debug(pam_handle_t* pamh, const char *msg)
 	pam_syslog(pamh, LOG_ERR, "%s", msg);
 }
 
-int get_password(pam_handle_t* pamh, pam_url_opts* opts)
+int get_password(pam_handle_t* pamh, pam_totpg_opts* opts)
 {
 	char* p = NULL;
 	const char *prompt;
 	int prompt_len = 0;
 
-	if(config_lookup_string(&config, "pam_url.settings.prompt", &prompt) == CONFIG_FALSE)
+	if(config_lookup_string(&config, "pam_totpg.settings.prompt", &prompt) == CONFIG_FALSE)
 		prompt = DEF_PROMPT;
 	
 	pam_prompt(pamh, PAM_PROMPT_ECHO_OFF, &p, "%s", prompt);
@@ -36,12 +36,12 @@ int get_password(pam_handle_t* pamh, pam_url_opts* opts)
 }
 
 
-int parse_opts(pam_url_opts *opts, int argc, const char *argv[], int mode)
+int parse_opts(pam_totpg_opts *opts, int argc, const char *argv[], int mode)
 {
 #if defined(DEBUG)
-	pam_url_debug = true;
+	pam_totpg_debug = true;
 #else
-	pam_url_debug = false;
+	pam_totpg_debug = false;
 #endif
 	opts->configfile = NULL;
 	opts->use_authtok = false;	
@@ -52,7 +52,7 @@ int parse_opts(pam_url_opts *opts, int argc, const char *argv[], int mode)
 		{
 			if(strcmp(argv[next_arg], "debug") == 0)
 			{
-				pam_url_debug = true;
+				pam_totpg_debug = true;
 				continue;
 			}
 			
@@ -71,41 +71,41 @@ int parse_opts(pam_url_opts *opts, int argc, const char *argv[], int mode)
 	}
 	
 	if(opts->configfile == NULL)
-		opts->configfile = strdup("/etc/pam_url.conf");
+		opts->configfile = strdup("/etc/pam_totpg.conf");
 	
 	config_init(&config);
 	config_read_file(&config, opts->configfile);
 	
 	// General Settings
-	if(config_lookup_string(&config, "pam_url.settings.url", &opts->url) == CONFIG_FALSE)
+	if(config_lookup_string(&config, "pam_totpg.settings.url", &opts->url) == CONFIG_FALSE)
 		opts->url = DEF_URL;
 	
-	if(config_lookup_string(&config, "pam_url.settings.returncode", &opts->ret_code) == CONFIG_FALSE)
+	if(config_lookup_string(&config, "pam_totpg.settings.returncode", &opts->ret_code) == CONFIG_FALSE)
 		opts->ret_code = DEF_RETURNCODE;
 	
-	if(config_lookup_string(&config, "pam_url.settings.userfield", &opts->user_field) == CONFIG_FALSE)
+	if(config_lookup_string(&config, "pam_totpg.settings.userfield", &opts->user_field) == CONFIG_FALSE)
 		opts->user_field = DEF_USER;
 	
-	if(config_lookup_string(&config, "pam_url.settings.passwdfield", &opts->passwd_field) == CONFIG_FALSE)
+	if(config_lookup_string(&config, "pam_totpg.settings.passwdfield", &opts->passwd_field) == CONFIG_FALSE)
 		opts->passwd_field = DEF_PASSWD;
 	
-	if(config_lookup_string(&config, "pam_url.settings.extradata", &opts->extra_field) == CONFIG_FALSE)
+	if(config_lookup_string(&config, "pam_totpg.settings.extradata", &opts->extra_field) == CONFIG_FALSE)
 		opts->extra_field = DEF_EXTRA;
 	
 	
 	// SSL Options
-	if(config_lookup_string(&config, "pam_url.ssl.client_cert", &opts->ssl_cert) == CONFIG_FALSE)
+	if(config_lookup_string(&config, "pam_totpg.ssl.client_cert", &opts->ssl_cert) == CONFIG_FALSE)
 		opts->ssl_cert = DEF_SSLCERT;
 	
-	if(config_lookup_string(&config, "pam_url.ssl.client_key", &opts->ssl_key) == CONFIG_FALSE)
+	if(config_lookup_string(&config, "pam_totpg.ssl.client_key", &opts->ssl_key) == CONFIG_FALSE)
 		opts->ssl_key = DEF_SSLKEY;
-	if(config_lookup_string(&config, "pam_url.ssl.ca_cert", &opts->ca_cert) == CONFIG_FALSE)
+	if(config_lookup_string(&config, "pam_totpg.ssl.ca_cert", &opts->ca_cert) == CONFIG_FALSE)
 		opts->ca_cert = DEF_CA_CERT;
 	
-	if(config_lookup_bool(&config, "pam_url.ssl.verify_host", (int *)&opts->ssl_verify_host) == CONFIG_FALSE)
+	if(config_lookup_bool(&config, "pam_totpg.ssl.verify_host", (int *)&opts->ssl_verify_host) == CONFIG_FALSE)
 		opts->ssl_verify_host = true;
 	
-	if(config_lookup_bool(&config, "pam_url.ssl.verify_peer", (int *)&opts->ssl_verify_peer) == CONFIG_FALSE)
+	if(config_lookup_bool(&config, "pam_totpg.ssl.verify_peer", (int *)&opts->ssl_verify_peer) == CONFIG_FALSE)
 		opts->ssl_verify_peer = true;
 	
 	return PAM_SUCCESS;
@@ -153,7 +153,7 @@ int curl_debug(CURL *C, curl_infotype info, char * text, size_t textsize, void* 
 	return 0;
 }
 
-int fetch_url(pam_handle_t *pamh, pam_url_opts opts)
+int fetch_url(pam_handle_t *pamh, pam_totpg_opts opts)
 {
 	CURL* eh = NULL;
 	char* post = NULL;
@@ -195,7 +195,7 @@ int fetch_url(pam_handle_t *pamh, pam_url_opts opts)
 		// should not have security implications in this context).
 		goto curl_error;
 
-	if( 1 == pam_url_debug)
+	if( 1 == pam_totpg_debug)
 	{
 		if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_VERBOSE, 1) )
 			goto curl_error;
@@ -276,7 +276,7 @@ curl_error:
 	return PAM_AUTH_ERR;
 }
 
-int check_rc(pam_url_opts opts)
+int check_rc(pam_totpg_opts opts)
 {
 	int ret=0;
 
@@ -303,7 +303,7 @@ int check_rc(pam_url_opts opts)
 	}
 }
 
-void cleanup(pam_url_opts* opts)
+void cleanup(pam_totpg_opts* opts)
 {
 	if( NULL != recvbuf )
 	{

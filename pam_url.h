@@ -1,11 +1,11 @@
-// pam_url - GPLv2, Sascha Thomas Spreitzer, https://fedorahosted.org/pam_url
+// pam_totpg - GPLv2, Sascha Thomas Spreitzer, https://fedorahosted.org/pam_totp
 
 #ifndef PAM_URL_H_
 #define PAM_URL_H_
 
 
 #ifndef NAME
-	#define NAME "pam_url"
+	#define NAME "pam_totpg"
 #endif
 
 #ifndef VERS
@@ -62,7 +62,7 @@
 #endif
 
 #ifndef DEF_EXTRA
-	#define DEF_EXTRA "&do=pam_url"
+	#define DEF_EXTRA "&do=pam_totpg"
 #endif
 
 #ifndef DEF_CA_CERT
@@ -70,20 +70,20 @@
 #endif
 
 #ifndef DEF_SSLKEY
-	#define DEF_SSLKEY "/etc/pki/pam_url_key.pem"
+	#define DEF_SSLKEY "/etc/pki/pam_totpg_key.pem"
 #endif
 
 #ifndef DEF_SSLCERT
-    #define DEF_SSLCERT "/etc/pki/pam_url_cert.pem"
+    #define DEF_SSLCERT "/etc/pki/pam_totpg_cert.pem"
 #endif
 
 #ifndef DEF_PROMPT
     #define DEF_PROMPT "Password: "
 #endif
 
-bool pam_url_debug;
+bool pam_totpg_debug;
 
-typedef struct pam_url_opts_ {
+typedef struct pam_totpg_opts_ {
 	const char *url;
 	const char *ret_code;
 	const char *user_field;
@@ -100,13 +100,13 @@ typedef struct pam_url_opts_ {
 
 	const void *user;
 	const void *passwd;
-} pam_url_opts;
+} pam_totpg_opts;
 
 void debug(pam_handle_t* pamh, const char *msg);
-int get_password(pam_handle_t* pamh, pam_url_opts* opts);
-int parse_opts(pam_url_opts* opts, int argc, const char** argv, int mode);
-int fetch_url(pam_handle_t *pamh, pam_url_opts opts);
-int check_rc(pam_url_opts opts);
-void cleanup(pam_url_opts* opts);
+int get_password(pam_handle_t* pamh, pam_totpg_opts* opts);
+int parse_opts(pam_totpg_opts* opts, int argc, const char** argv, int mode);
+int fetch_url(pam_handle_t *pamh, pam_totpg_opts opts);
+int check_rc(pam_totpg_opts opts);
+void cleanup(pam_totpg_opts* opts);
 
 #endif /* PAM_URL_H_ */

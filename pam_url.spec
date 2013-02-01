@@ -1,17 +1,17 @@
 Summary:        PAM module to authenticate with HTTP servers
-Name:           pam_url
+Name:           pam_totp
 Version:        0.3
 Release:        1%{?dist}
 Epoch:          1
 License:        GPLv2
 Group:          System Environment/Base
-URL:            https://fedorahosted.org/pam_url
+URL:            https://fedorahosted.org/pam_totp
 Source:         %{name}-%{version}.tar.bz2
 Requires:       pam
 BuildRequires:  pam-devel, libcurl-devel, libconfig-devel
 
 %description
-The pam_url module enables you to authenticate users against a Web application,
+The pam_totp module enables you to authenticate users against a Web application,
 such as totpcgi.
 
 %prep
@@ -26,8 +26,8 @@ make DESTDIR=%{buildroot} install
 %files
 %defattr(-,root,root,-)
 %doc AUTHOR COPYING INSTALL README examples
-%config(noreplace) %{_sysconfdir}/pam_url.conf
-/%{_lib}/security/pam_url.so
+%config(noreplace) %{_sysconfdir}/pam_totp.conf
+/%{_lib}/security/pam_totp.so
 
 
 %changelog
