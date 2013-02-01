@@ -1,6 +1,6 @@
-// pam_totpg - GPLv2, Sascha Thomas Spreitzer, https://fedorahosted.org/pam_totp
+// pam_totp - GPLv2, Sascha Thomas Spreitzer, https://fedorahosted.org/pam_totp
 
-#include "pam_totpg.h"
+#include "pam_totp.h"
 
 PAM_EXTERN int pam_sm_setcred(pam_handle_t *pamh, int flags, int argc, const char **argv)
 { // by now, a dummy
@@ -10,8 +10,13 @@ PAM_EXTERN int pam_sm_setcred(pam_handle_t *pamh, int flags, int argc, const cha
 PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags,
                                    int argc, const char **argv)
 {
-	pam_totpg_opts opts;
+	pam_totp_opts opts;
 
+	if( PAM_SUCCESS != parse_opts(&opts, argc, argv, PAM_SM_AUTH) )
+	{
+		debug(pamh, "Could not parse module options.");
+		return PAM_AUTH_ERR;
+	}
 	if ( PAM_SUCCESS != pam_get_item(pamh, PAM_USER, &opts.user) )
 	{
 		debug(pamh, "Could not get user item from pam.");
@@ -22,11 +27,6 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 		{
 			debug(pamh, "Could not get password item from pam.");
 		}
-	}	
-	if( PAM_SUCCESS != parse_opts(&opts, argc, argv, PAM_SM_AUTH) )
-	{
-		debug(pamh, "Could not parse module options.");
-		return PAM_AUTH_ERR;
 	}
 
 	if(! opts.passwd){

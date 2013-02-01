@@ -1,7 +1,7 @@
-pam_totp - authenticate with webservers
+pam_totp - Centralized two-factor authentication built on Google Authenticator 
 
 This software is opensource software licensed under the GNU Public License version 2.
-The author of this software is Sascha Thomas Spreitzer <sspreitzer (at) fedoraproject.org>.
+This software is based on the pam_url module originally created bySascha Thomas Spreitzer <sspreitzer (at) fedoraproject.org>.
 http://spreitzer.name/
 https://fedoraproject.org/wiki/User:Sspreitzer
 

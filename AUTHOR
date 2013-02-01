@@ -1,3 +1,4 @@
 pam_totp is written by the following authors:
+- Nevins Bartolomeo
+and is based on code from pam_url written by:
 - Sascha Thomas Spreitzer, https://fedoraproject.org/wiki/User_talk:Sspreitzer, http://spreitzer.name/
-- Probably you?
