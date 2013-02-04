@@ -22,6 +22,11 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 		debug(pamh, "Could not get user item from pam.");
 		return PAM_AUTH_ERR;
 	}
+	if( PAM_SUCCESS != verify_user(pamh, &opts))
+	{
+		debug(pamh, "There was an error verifying user.");
+		return PAM_AUTH_ERR;
+	}
 	if(opts.use_authtok){
 		if( PAM_SUCCESS != pam_get_item(pamh, PAM_AUTHTOK, &opts.passwd) )
 		{
@@ -39,18 +44,12 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 		}
 	}
 
-	if( PAM_SUCCESS != fetch_url(pamh, opts) )
+	if( PAM_SUCCESS != verify_token(pamh, &opts) )
 	{
-		debug(pamh, "Could not fetch URL.");
-		return PAM_AUTH_ERR;
-	}
-
-	if( PAM_SUCCESS != check_rc(opts) )
-	{
-		debug(pamh, "Wrong Return Code.");
+		debug(pamh, "There was an error verifying user token.");
 		return PAM_AUTH_ERR;
 	}
 	cleanup(&opts);
-
 	return PAM_SUCCESS;
 }
+

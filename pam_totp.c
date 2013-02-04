@@ -1,8 +1,9 @@
 // pam_totp - GPLv2, Sascha Thomas Spreitzer, https://fedorahosted.org/pam_totp
 
 #include "pam_totp.h"
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <unistd.h>
 
 char* recvbuf = NULL;
 size_t recvbuf_size = 0;
@@ -92,6 +93,8 @@ int parse_opts(pam_totp_opts *opts, int argc, const char *argv[], int mode)
 	
 	if(config_lookup_string(&config, "pam_totp.settings.extradata", &opts->extra_field) == CONFIG_FALSE)
 		opts->extra_field = DEF_EXTRA;
+	if(config_lookup_string(&config, "pam_totp.settings.hostname", &opts->hostname) == CONFIG_FALSE)
+                ;
 	
 	
 	// SSL Options
@@ -112,7 +115,13 @@ int parse_opts(pam_totp_opts *opts, int argc, const char *argv[], int mode)
 	return PAM_SUCCESS;
 }
 
-
+void get_hostname(pam_totp_opts *opts)
+{
+	char hostname[256];
+	hostname[255] = '\0';
+	gethostname(hostname, 255);
+	opts->hostname = hostname;
+}
 size_t curl_wf(void *ptr, size_t size, size_t nmemb, void *stream)
 {
 	size_t oldsize=0;
@@ -153,122 +162,8 @@ int curl_debug(CURL *C, curl_infotype info, char * text, size_t textsize, void* 
 	debug((pam_handle_t*)pamh, text);
 	return 0;
 }
-
-int fetch_url(pam_handle_t *pamh, pam_totp_opts opts)
+int curl_error(pam_handle_t *pamh, CURL *eh, char *post)
 {
-	CURL* eh = NULL;
-	char* post = NULL;
-	int ret = 0;
-
-	if( NULL == opts.user )
-		opts.user = "";
-
-	if( NULL == opts.passwd )
-		opts.passwd = "";
-	
-	if( 0 != curl_global_init(CURL_GLOBAL_ALL) )
-		goto curl_error;
-
-	if( NULL == (eh = curl_easy_init() ) )
-		goto curl_error;
-
-	char *safe_user = curl_easy_escape(eh, opts.user, 0);
-	if( safe_user == NULL )
-		goto curl_error;
-	
-	char *safe_passwd = curl_easy_escape(eh, opts.passwd, 0);
-	if( safe_passwd == NULL )
-		goto curl_error;
-
-	ret = asprintf(&post, "%s=%s&%s=%s&mode=%s%s", opts.user_field,
-							safe_user,
-							opts.passwd_field,
-							safe_passwd,
-							opts.mode,
-							opts.extra_field);
-	
-	curl_free(safe_passwd);
-	curl_free(safe_user);
-
-	if (ret == -1)
-		// If this happens, the contents of post are undefined, we could
-		// end up freeing an uninitialized pointer, which could crash (but
-		// should not have security implications in this context).
-		goto curl_error;
-
-	if( 1 == pam_totp_debug)
-	{
-		if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_VERBOSE, 1) )
-			goto curl_error;
-
-		if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_DEBUGDATA, pamh) )
-			goto curl_error;
-
-		if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_DEBUGFUNCTION, curl_debug) )
-			goto curl_error;
-	}
-
-	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_POSTFIELDS, post) )
-		goto curl_error;
-
-	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_USERAGENT, USER_AGENT) )
-		goto curl_error;
-
-	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, curl_wf) )
-		goto curl_error;
-
-	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_URL, opts.url) )
-		goto curl_error;
-
-	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_SSLCERT, opts.ssl_cert) )
-		goto curl_error;
-
-	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_SSLCERTTYPE, "PEM") )
-		goto curl_error;
-
-	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_SSLKEY, opts.ssl_key) )
-		goto curl_error;
-
-	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_SSLKEYTYPE, "PEM") )
-		goto curl_error;
-
-	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_CAINFO, opts.ca_cert) )
-		goto curl_error;
-
-	if( opts.ssl_verify_host == true )
-	{
-		if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_SSL_VERIFYHOST, 2) )
-			goto curl_error;
-	}
-	else
-	{
-		if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_SSL_VERIFYHOST, 0) )
-			goto curl_error;
-	}
-
-	if( opts.ssl_verify_peer == true )
-	{
-		if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_SSL_VERIFYPEER, 1) )
-			goto curl_error;
-	}
-	else
-	{
-		if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_SSL_VERIFYPEER, 0) )
-			goto curl_error;
-	}
-
-	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_FAILONERROR, 1) )
-		goto curl_error;
-
-	if( CURLE_OK != curl_easy_perform(eh) )
-		goto curl_error;
-
-	// No errors
-	curl_easy_cleanup(eh);
-	free(post);
-	return PAM_SUCCESS;
-
-curl_error:
 	debug(pamh, "There was an error with curl!");
 	if (eh != NULL)
 		curl_easy_cleanup(eh);
@@ -276,24 +171,161 @@ curl_error:
 		free(post);
 	return PAM_AUTH_ERR;
 }
+int verify_user(pam_handle_t *pamh, pam_totp_opts *opts)
+{
+	CURL* eh = NULL;
+	char* post = NULL;
+	int ret = 0;
+	if( NULL == opts->user )
+		opts->user = "";
+	if( NULL == opts->hostname )
+		opts->hostname = "";
+	if( 0 != curl_global_init(CURL_GLOBAL_ALL) )
+		return curl_error(pamh,&eh,post);
+	if( NULL == (eh = curl_easy_init() ) )
+		return curl_error(pamh,&eh,post);
+	char *safe_user = curl_easy_escape(eh, opts->user, 0);
+	if( safe_user == NULL )
+		return curl_error(pamh,&eh,post);
+	char *safe_hostname = curl_easy_escape(eh, opts->hostname, 0);
+	if( safe_hostname == NULL )
+		return curl_error(pamh,&eh,post);
+	ret = asprintf(&post, "verify&%s=%s&&mode=%s&hostname=%s%s", opts->user_field,
+							safe_user,
+							opts->mode,
+							safe_hostname,
+							opts->extra_field);
+	curl_free(safe_user);
+	curl_free(safe_hostname);
+	if (ret == -1)
+		// If this happens, the contents of post are undefined, we could
+		// end up freeing an uninitialized pointer, which could crash (but
+		// should not have security implications in this context).
+		return curl_error(pamh,&eh,post);
+	ret = fetch_url(pamh, *opts, &eh, post);
+	curl_easy_cleanup(eh);
+	free(post);
+	if (PAM_SUCCESS != ret)
+		return ret;
+	return check_return_code(opts);
+}
+int verify_token(pam_handle_t *pamh, pam_totp_opts *opts)
+{
+	CURL* eh = NULL;
+	char* post = NULL;
+	int ret = 0;
+	if( NULL == opts->user )
+		opts->user = "";
+	if( NULL == opts->passwd )
+		opts->passwd = "";
+	if( NULL == opts->hostname )
+		opts->hostname = "";
+	if( 0 != curl_global_init(CURL_GLOBAL_ALL) )
+		return curl_error(pamh,&eh,post);
+	if( NULL == (eh = curl_easy_init() ) )
+		return curl_error(pamh,&eh,post);
+	char *safe_user = curl_easy_escape(eh, opts->user, 0);
+	if( safe_user == NULL )
+		return curl_error(pamh,&eh,post);
+	char *safe_passwd = curl_easy_escape(eh, opts->passwd, 0);
+	if( safe_passwd == NULL )
+		return curl_error(pamh,&eh,post);
+	char *safe_hostname = curl_easy_escape(eh, opts->hostname, 0);
+        if( safe_hostname == NULL )
+                return curl_error(pamh,&eh,post);
+	ret = asprintf(&post, "%s=%s&%s=%s&mode=%s&hostname=%s%s", opts->user_field,
+							safe_user,
+							opts->passwd_field,
+							safe_passwd,
+							opts->mode,
+							safe_hostname,
+							opts->extra_field);
+	curl_free(safe_passwd);
+	curl_free(safe_user);
+	curl_free(safe_hostname);
+	if (ret == -1)
+		// If this happens, the contents of post are undefined, we could
+		// end up freeing an uninitialized pointer, which could crash (but
+		// should not have security implications in this context).
+		return curl_error(pamh,&eh,post);
+	ret = fetch_url(pamh, *opts, &eh, post);
+	curl_easy_cleanup(eh);
+	free(post);
+	if (PAM_SUCCESS != ret)
+		return ret;
+	return check_return_code(opts);
+}
+int fetch_url(pam_handle_t *pamh, pam_totp_opts opts, CURL *eh, char *post)
+{
+	if( 1 == pam_totp_debug)
+	{
+		if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_VERBOSE, 1) )
+			return curl_error(pamh,&eh,post);
 
-int check_rc(pam_totp_opts opts)
+		if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_DEBUGDATA, pamh) )
+			return curl_error(pamh,&eh,post);
+
+		if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_DEBUGFUNCTION, curl_debug) )
+			return curl_error(pamh,&eh,post);
+	}
+	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_POSTFIELDS, post) )
+		return curl_error(pamh,&eh,post);
+	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_USERAGENT, USER_AGENT) )
+		return curl_error(pamh,&eh,post);
+	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, curl_wf) )
+		return curl_error(pamh,&eh,post);
+	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_URL, opts.url) )
+		return curl_error(pamh,&eh,post);
+	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_SSLCERT, opts.ssl_cert) )
+		return curl_error(pamh,&eh,post);
+	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_SSLCERTTYPE, "PEM") )
+		return curl_error(pamh,&eh,post);
+	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_SSLKEY, opts.ssl_key) )
+		return curl_error(pamh,&eh,post);
+	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_SSLKEYTYPE, "PEM") )
+		return curl_error(pamh,&eh,post);
+	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_CAINFO, opts.ca_cert) )
+		return curl_error(pamh,&eh,post);
+	if( opts.ssl_verify_host == true )
+	{
+		if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_SSL_VERIFYHOST, 2) )
+			return curl_error(pamh,&eh,post);
+	}
+	else
+	{
+		if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_SSL_VERIFYHOST, 0) )
+			return curl_error(pamh,&eh,post);
+	}
+	if( opts.ssl_verify_peer == true )
+	{
+		if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_SSL_VERIFYPEER, 1) )
+			return curl_error(pamh,&eh,post);
+	}
+	else
+	{
+		if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_SSL_VERIFYPEER, 0) )
+			return curl_error(pamh,&eh,post);
+	}
+	if( CURLE_OK != curl_easy_setopt(eh, CURLOPT_FAILONERROR, 1) )
+		return curl_error(pamh,&eh,post);
+	if( CURLE_OK != curl_easy_perform(eh) )
+		return curl_error(pamh,&eh,post);
+	// No errors
+	return PAM_SUCCESS;
+}
+
+int check_return_code(pam_totp_opts *opts)
 {
 	int ret=0;
-
 	if( NULL == recvbuf )
 	{
 		ret++;
 		return PAM_AUTH_ERR;
 	}
-
-
-    if ( strlen(opts.ret_code) != strlen(recvbuf) )
-        ret++;
-        
-	if( 0 != memcmp(opts.ret_code, recvbuf, strlen(opts.ret_code)) )
+	if ( strlen(opts->ret_code) != strlen(recvbuf) )
+	    ret++;    
+	if( 0 != memcmp(opts->ret_code, recvbuf, strlen(opts->ret_code)) )
 		ret++;
-
 	if( 0 != ret )
 	{
 		return PAM_AUTH_ERR;
@@ -311,8 +343,8 @@ void cleanup(pam_totp_opts* opts)
 		free(recvbuf);
 		recvbuf = NULL;
 	}
-
 	recvbuf_size=0;
 	free(opts->configfile);
 	config_destroy(&config);
 }
+

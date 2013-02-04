@@ -1,7 +1,7 @@
 // pam_totp - GPLv2, Sascha Thomas Spreitzer, https://fedorahosted.org/pam_totp
 
-#ifndef PAM_URL_H_
-#define PAM_URL_H_
+#ifndef PAM_TOTP_H_
+#define PAM_TOTP_H_
 
 
 #ifndef NAME
@@ -88,6 +88,7 @@ typedef struct pam_totp_opts_ {
 	const char *ret_code;
 	const char *user_field;
 	const char *passwd_field;
+	const char *hostname;
 	char *extra_field;
 	const char *mode;
 	char *configfile;
@@ -105,8 +106,12 @@ typedef struct pam_totp_opts_ {
 void debug(pam_handle_t* pamh, const char *msg);
 int get_password(pam_handle_t* pamh, pam_totp_opts* opts);
 int parse_opts(pam_totp_opts* opts, int argc, const char** argv, int mode);
-int fetch_url(pam_handle_t *pamh, pam_totp_opts opts);
-int check_rc(pam_totp_opts opts);
+int curl_error(pam_handle_t *pamh, CURL *eh, char *post);
+int verify_user(pam_handle_t *pamh, pam_totp_opts* opts);
+int verify_token(pam_handle_t *pamh, pam_totp_opts* opts);
+int fetch_url(pam_handle_t *pamh, pam_totp_opts opts, CURL *eh, char *post);
+int check_return_code(pam_totp_opts *opts);
 void cleanup(pam_totp_opts* opts);
 
 #endif /* PAM_URL_H_ */
+
