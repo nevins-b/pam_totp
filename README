@@ -15,8 +15,9 @@ auth required pam_totp.so [debug] [use_authtok] [config=/etc/pam_totp.conf]
 [...]
 
 This line forms the following url encoded POST data:
-user=<username>&passwd=<pass>&mode=PAM_AUTH&PSK=secret&do=auth
+user=<username>&passwd=<pass>&mode=PAM_AUTH&hostname=<hostname>t&do=auth
 It should return either 200 OK with PSK in the body or 403 Forbidden if unsuccessful.
 
-Please take a look inside the examples directory.
-Please read the COPYING, INSTALL and AUTHOR files as well.
+[TODO]
+- Code audit
+- Inline provisioning for users not recognised by the totp server
