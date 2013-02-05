@@ -48,10 +48,12 @@
 #ifndef DEF_URL
 	#define DEF_URL "https://www.example.org/"
 #endif
+DEF_VERIFYPATH
 
-#ifndef DEF_RETURNCODE
-	#define DEF_RETURNCODE "OK"
+#ifndef DEF_VERIFYPATH
+	#define DEF_VERIFYPATH "verify/"
 #endif
+
 
 #ifndef DEF_USER
 	#define DEF_USER "user"
@@ -61,9 +63,6 @@
 	#define DEF_PASSWD "passwd"
 #endif
 
-#ifndef DEF_EXTRA
-	#define DEF_EXTRA "&do=pam_totp"
-#endif
 
 #ifndef DEF_CA_CERT
 	#define DEF_CA_CERT "/etc/pki/tls/certs/ca-bundle.crt"
@@ -78,24 +77,24 @@
 #endif
 
 #ifndef DEF_PROMPT
-    #define DEF_PROMPT "Password: "
+    #define DEF_PROMPT "Token: "
 #endif
 
 bool pam_totp_debug;
 
 typedef struct pam_totp_opts_ {
 	const char *url;
-	const char *ret_code;
+	const char *verify_path;
 	const char *user_field;
-	const char *passwd_field;
+	const char *token_field;
 	const char *hostname;
-	char *extra_field;
-	const char *mode;
+	
 	char *configfile;
+	bool use_authtok;
+	
 	const char *ssl_cert;
 	const char *ssl_key;
-	const char *ca_cert;    
-   	bool use_authtok; 
+	const char *ca_cert; 
 	bool ssl_verify_peer;
 	bool ssl_verify_host;
 
@@ -106,11 +105,11 @@ typedef struct pam_totp_opts_ {
 void debug(pam_handle_t* pamh, const char *msg);
 int get_password(pam_handle_t* pamh, pam_totp_opts* opts);
 int parse_opts(pam_totp_opts* opts, int argc, const char** argv, int mode);
-int curl_error(pam_handle_t *pamh, CURL *eh, char *post);
+int curl_error(CURL *eh, char *post);
 int verify_user(pam_handle_t *pamh, pam_totp_opts* opts);
 int verify_token(pam_handle_t *pamh, pam_totp_opts* opts);
-int fetch_url(pam_handle_t *pamh, pam_totp_opts opts, CURL *eh, char *post);
-int check_return_code(pam_totp_opts *opts);
+void fetch_url(pam_handle_t *pamh, pam_totp_opts opts, CURL* session, char* url, char* post);
+int check_status_code(CURL *session);
 void cleanup(pam_totp_opts* opts);
 
 #endif /* PAM_URL_H_ */
