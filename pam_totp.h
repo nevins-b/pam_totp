@@ -104,15 +104,21 @@ typedef struct pam_totp_opts_ {
 	const void *token;
 } pam_totp_opts;
 
+typedef struct curl_result_ {
+	char* data;
+	int  status_code;
+} curl_result;
+
 void debug(pam_handle_t* pamh, const char *msg);
 int get_password(pam_handle_t* pamh, pam_totp_opts* opts);
 int parse_opts(pam_handle_t *pamh, pam_totp_opts* opts, int argc, const char** argv);
 void get_hostname(pam_totp_opts* opts);
 void curl_error(pam_handle_t *pamh, CURL *session);
-int verify_user(pam_handle_t *pamh, pam_totp_opts* opts);
-int verify_token(pam_handle_t *pamh, pam_totp_opts* opts);
-void fetch_url(pam_handle_t *pamh, pam_totp_opts opts, CURL* session, char* url, char* post);
-int check_status_code(CURL *session);
+char *fmtmsg( const char *format, ... );
+int verify_user(pam_handle_t *pamh, pam_totp_opts opts);
+int verify_token(pam_handle_t *pamh, pam_totp_opts opts);
+void fetch_url(pam_handle_t *pamh, pam_totp_opts opts, curl_result *response, char* url, char* post);
+int check_status_code(pam_handle_t *pamh, CURL *session);
 void cleanup(pam_totp_opts* opts);
 
 #endif /* PAM_URL_H_ */

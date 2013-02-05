@@ -2,7 +2,7 @@
 
 libs		+= libcurl libconfig
 
-CFLAGS		+= -std=c99 -fPIC -pthread $(shell pkg-config --cflags ${libs})
+CFLAGS		+= -fPIC -pthread $(shell pkg-config --cflags ${libs})
 
 LDFLAGS		:= -shared -lpam -pthread $(shell pkg-config --libs ${libs})
 

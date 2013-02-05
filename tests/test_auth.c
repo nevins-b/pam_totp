@@ -10,7 +10,7 @@ int main(int argc, char **argv) {
 			NULL
 	};
 
-	if( PAM_SUCCESS != pam_start("test", "testa", &pamc, &pamh) )
+	if( PAM_SUCCESS != pam_start("test", "nbartolomeo", &pamc, &pamh) )
 	{
 		fprintf(stderr, "ERR: pam_start failed!\n");
 		return 1;
@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "ERR: pam_end failed!\n");
 		return 1;
 	}
-
+	fprintf(stderr, "Auth succeeded!\n");
 	return 0;
 
 }
