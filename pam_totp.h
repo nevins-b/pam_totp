@@ -48,19 +48,21 @@
 #ifndef DEF_URL
 	#define DEF_URL "https://www.example.org/"
 #endif
-DEF_VERIFYPATH
 
 #ifndef DEF_VERIFYPATH
 	#define DEF_VERIFYPATH "verify/"
 #endif
 
+#ifndef DEF_HOSTNAME
+        #define DEF_HOSTNAME "example.com"
+#endif
 
 #ifndef DEF_USER
 	#define DEF_USER "user"
 #endif
 
-#ifndef DEF_PASSWD
-	#define DEF_PASSWD "passwd"
+#ifndef DEF_TOKEN
+	#define DEF_TOKEN "token"
 #endif
 
 
@@ -99,13 +101,14 @@ typedef struct pam_totp_opts_ {
 	bool ssl_verify_host;
 
 	const void *user;
-	const void *passwd;
+	const void *token;
 } pam_totp_opts;
 
 void debug(pam_handle_t* pamh, const char *msg);
 int get_password(pam_handle_t* pamh, pam_totp_opts* opts);
-int parse_opts(pam_totp_opts* opts, int argc, const char** argv, int mode);
-int curl_error(CURL *eh, char *post);
+int parse_opts(pam_handle_t *pamh, pam_totp_opts* opts, int argc, const char** argv);
+void get_hostname(pam_totp_opts* opts);
+void curl_error(CURL *eh, char *post);
 int verify_user(pam_handle_t *pamh, pam_totp_opts* opts);
 int verify_token(pam_handle_t *pamh, pam_totp_opts* opts);
 void fetch_url(pam_handle_t *pamh, pam_totp_opts opts, CURL* session, char* url, char* post);

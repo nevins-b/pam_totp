@@ -27,7 +27,7 @@ int get_password(pam_handle_t* pamh, pam_totp_opts* opts)
 	
 	if( NULL != p && strlen(p) > 0)
 	{
-		opts->passwd = p;
+		opts->token = p;
 		return PAM_SUCCESS;
 	}
 	else
@@ -37,7 +37,7 @@ int get_password(pam_handle_t* pamh, pam_totp_opts* opts)
 }
 
 
-int parse_opts(pam_totp_opts *opts, int argc, const char *argv[], int mode)
+int parse_opts(pam_handle_t *pamh, pam_totp_opts *opts, int argc, const char *argv[])
 {
 #if defined(DEBUG)
 	pam_totp_debug = true;
@@ -46,7 +46,6 @@ int parse_opts(pam_totp_opts *opts, int argc, const char *argv[], int mode)
 #endif
 	opts->configfile = NULL;
 	opts->use_authtok = false;	
-	opts->mode = "PAM_SM_AUTH";
 	if(argc > 0 && argv != NULL)
 	{	
 		for(int next_arg = 0; next_arg < argc; next_arg++)
@@ -71,31 +70,26 @@ int parse_opts(pam_totp_opts *opts, int argc, const char *argv[], int mode)
 			}
 		}
 	}
-	
 	if(opts->configfile == NULL)
 		opts->configfile = strdup("/etc/pam_totp.conf");
 	
 	config_init(&config);
 	config_read_file(&config, opts->configfile);
-	
 	// General Settings
 	if(config_lookup_string(&config, "pam_totp.settings.url", &opts->url) == CONFIG_FALSE)
 		opts->url = DEF_URL;
 		
 	if(config_lookup_string(&config, "pam_totp.settings.verifypath", &opts->verify_path) == CONFIG_FALSE)
-		opts->url = DEF_VERIFYPATH;
+		opts->verify_path = DEF_VERIFYPATH;
 		
 	if(config_lookup_string(&config, "pam_totp.settings.userfield", &opts->user_field) == CONFIG_FALSE)
 		opts->user_field = DEF_USER;
 	
 	if(config_lookup_string(&config, "pam_totp.settings.tokenfield", &opts->token_field) == CONFIG_FALSE)
-		opts->passwd_field = DEF_PASSWD;
-	
+		opts->token_field = DEF_TOKEN;
 	
 	if(config_lookup_string(&config, "pam_totp.settings.hostname", &opts->hostname) == CONFIG_FALSE)
-                get_hostname(opts);
-	
-	
+		opts->hostname = DEF_HOSTNAME;	
 	// SSL Options
 	if(config_lookup_string(&config, "pam_totp.ssl.client_cert", &opts->ssl_cert) == CONFIG_FALSE)
 		opts->ssl_cert = DEF_SSLCERT;
@@ -110,7 +104,7 @@ int parse_opts(pam_totp_opts *opts, int argc, const char *argv[], int mode)
 	
 	if(config_lookup_bool(&config, "pam_totp.ssl.verify_peer", (int *)&opts->ssl_verify_peer) == CONFIG_FALSE)
 		opts->ssl_verify_peer = true;
-	
+
 	return PAM_SUCCESS;
 }
 
@@ -163,19 +157,20 @@ int curl_debug(CURL *C, curl_infotype info, char * text, size_t textsize, void* 
 	return 0;
 }
 
-int curl_error(CURL *session, char *post)
+void curl_error(CURL *session, char *post)
 {
+	
 	if (session != NULL)
 		curl_easy_cleanup(session);
 	if (post != NULL)
 		free(post);
-	return NULL;
 }
 
 int verify_user(pam_handle_t *pamh, pam_totp_opts *opts)
 {
 	CURL* session = NULL;
 	char* post = NULL;
+	char* url = NULL;
 	int ret = 0;
 	if( NULL == opts->user )
 		opts->user = "";
@@ -214,7 +209,6 @@ int verify_user(pam_handle_t *pamh, pam_totp_opts *opts)
 	
 	curl_free(safe_user);
 	curl_free(safe_hostname);
-	
 	if (ret == -1)
 	{
 		curl_error(&session,post);
@@ -227,7 +221,6 @@ int verify_user(pam_handle_t *pamh, pam_totp_opts *opts)
 		return PAM_AUTH_ERR;
 	}
 	fetch_url(pamh, *opts, &session, url, post);
-	fetch_url(pamh, *opts, &session, post);
 	free(post);
 	if (NULL != session ){
 		ret = check_status_code(&session);
@@ -267,7 +260,7 @@ int verify_token(pam_handle_t *pamh, pam_totp_opts *opts)
 		return PAM_AUTH_ERR;
 	}
 	char *safe_token = curl_easy_escape(session, opts->token, 0);
-	if( safe_passwd == NULL )
+	if( safe_token == NULL )
 	{
 		curl_error(&session,post);
 		return PAM_AUTH_ERR;
@@ -313,6 +306,7 @@ int verify_token(pam_handle_t *pamh, pam_totp_opts *opts)
 
 void fetch_url(pam_handle_t *pamh, pam_totp_opts opts, CURL *session, char *url, char *post)
 {
+	debug(pamh,"Starting Fetch");
 	if( 1 == pam_totp_debug)
 	{
 		if( CURLE_OK != curl_easy_setopt(session, CURLOPT_VERBOSE, 1) )
@@ -419,7 +413,7 @@ int check_status_code(CURL *session)
 {
 	long http_code = 0;
 	curl_easy_getinfo (session, CURLINFO_RESPONSE_CODE, &http_code);
-	if (http_code == 200 && curl_code != CURLE_ABORTED_BY_CALLBACK)
+	if (http_code == 200)
 	{
 		return PAM_SUCCESS;
 	}
