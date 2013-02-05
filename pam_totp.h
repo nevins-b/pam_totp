@@ -108,7 +108,7 @@ void debug(pam_handle_t* pamh, const char *msg);
 int get_password(pam_handle_t* pamh, pam_totp_opts* opts);
 int parse_opts(pam_handle_t *pamh, pam_totp_opts* opts, int argc, const char** argv);
 void get_hostname(pam_totp_opts* opts);
-void curl_error(CURL *eh, char *post);
+void curl_error(pam_handle_t *pamh, CURL *session);
 int verify_user(pam_handle_t *pamh, pam_totp_opts* opts);
 int verify_token(pam_handle_t *pamh, pam_totp_opts* opts);
 void fetch_url(pam_handle_t *pamh, pam_totp_opts opts, CURL* session, char* url, char* post);
