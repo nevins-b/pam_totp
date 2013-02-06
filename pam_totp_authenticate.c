@@ -26,7 +26,18 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 	debug(pamh,"Verified user");
 	if( PAM_SUCCESS != verify_user(pamh, opts))
 	{
-		debug(pamh, "There was an error verifying user.");
+		if (PAM_SUCCESS != should_provision(pamh)){
+			cleanup(&opts);
+			return PAM_SUCCESS;
+		}
+		if( PAM_SUCCESS != provision_user(pamh, opts)){
+			debug(pamh, "There was an error provisioning the user");
+			return PAM_AUTH_ERR;
+		}
+		if( PAM_SUCCESS != provision_secret(pamh, opts)){
+			debug(pamh, "There was an error provisioning the secret");
+			return PAM_AUTH_ERR;
+		}
 		return PAM_AUTH_ERR;
 	}
 	opts.token = NULL;
