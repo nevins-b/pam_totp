@@ -89,8 +89,12 @@ int parse_opts(pam_handle_t *pamh, pam_totp_opts *opts, int argc, const char *ar
 	if(config_lookup_string(&config, "pam_totp.settings.tokenfield", &opts->token_field) == CONFIG_FALSE)
 		opts->token_field = DEF_TOKEN;
 
+	if(config_lookup_string(&config, "pam_totp.settings.authdomain", &opts->auth_domain) == CONFIG_FALSE)
+                opts->auth_domain = DEF_AUTHDOMAIN;
+
 	if(config_lookup_string(&config, "pam_totp.settings.hostname", &opts->hostname) == CONFIG_FALSE)
-		opts->hostname = DEF_HOSTNAME;
+		get_hostname(opts);
+
 	// SSL Options
 	if(config_lookup_string(&config, "pam_totp.ssl.client_cert", &opts->ssl_cert) == CONFIG_FALSE)
 		opts->ssl_cert = DEF_SSLCERT;
@@ -115,54 +119,6 @@ void get_hostname(pam_totp_opts *opts)
 	hostname[255] = '\0';
 	gethostname(hostname, 255);
 	opts->hostname = hostname;
-}
-
-size_t curl_wf(void *ptr, size_t size, size_t nmemb, void *stream)
-{
-	size_t oldsize=0;
-
-	if( 0 == size * nmemb )
-		return 0;
-
-	if( NULL == recvbuf )
-	{
-		if( NULL == ( recvbuf = calloc(nmemb, size) ) )
-		{
-			return 0;
-		}
-	}
-
-	// Check the multiplication for an overflow
-	if (((nmemb * size) > (SIZE_MAX / nmemb)) ||
-			// Check the addition for an overflow
-			((SIZE_MAX - recvbuf_size) < (nmemb * size))) {
-		// The arithmetic will cause an integer overflow
-		return 0;
-	}
-	if( NULL == ( recvbuf = realloc(recvbuf, recvbuf_size + (nmemb * size)) ) )
-	{
-		return 0;
-	}
-	else
-	{
-		oldsize = recvbuf_size;
-		recvbuf_size += nmemb * size;
-		memcpy(recvbuf + oldsize, ptr, size * nmemb);
-		return(size*nmemb);
-	}
-}
-
-int curl_debug(CURL *C, curl_infotype info, char * text, size_t textsize, void* pamh)
-{
-	debug((pam_handle_t*)pamh, text);
-	return 0;
-}
-
-void curl_error(pam_handle_t *pamh, CURL *session)
-{
-	debug(pamh, "There was an error with curl!");
-	if (session != NULL)
-		curl_easy_cleanup(session);
 }
 
 int verify_user(pam_handle_t *pamh, pam_totp_opts opts)
@@ -228,6 +184,55 @@ int verify_token(pam_handle_t *pamh, pam_totp_opts opts)
 	free(url);
 	return response.status_code;
 }
+size_t curl_wf(void *ptr, size_t size, size_t nmemb, void *stream)
+{
+	size_t oldsize=0;
+
+	if( 0 == size * nmemb )
+		return 0;
+
+	if( NULL == recvbuf )
+	{
+		if( NULL == ( recvbuf = calloc(nmemb, size) ) )
+		{
+			return 0;
+		}
+	}
+
+	// Check the multiplication for an overflow
+	if (((nmemb * size) > (SIZE_MAX / nmemb)) ||
+			// Check the addition for an overflow
+			((SIZE_MAX - recvbuf_size) < (nmemb * size))) {
+		// The arithmetic will cause an integer overflow
+		return 0;
+	}
+	if( NULL == ( recvbuf = realloc(recvbuf, recvbuf_size + (nmemb * size)) ) )
+	{
+		return 0;
+	}
+	else
+	{
+		oldsize = recvbuf_size;
+		recvbuf_size += nmemb * size;
+		memcpy(recvbuf + oldsize, ptr, size * nmemb);
+		return(size*nmemb);
+	}
+}
+
+int curl_debug(CURL *C, curl_infotype info, char * text, size_t textsize, void* pamh)
+{
+	debug((pam_handle_t*)pamh, text);
+	return 0;
+}
+
+void curl_error(pam_handle_t *pamh, CURL *session)
+{
+	debug(pamh, "There was an error with curl!");
+	if (session != NULL)
+		curl_easy_cleanup(session);
+}
+
+
 
 void fetch_url(pam_handle_t *pamh, pam_totp_opts opts, curl_result *response, char *url, char *post)
 {

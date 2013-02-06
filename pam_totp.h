@@ -57,6 +57,10 @@
         #define DEF_HOSTNAME "example.com"
 #endif
 
+#ifndef DEF_AUTHDOMAIN
+        #define DEF_AUTHDOMAIN "example.com"
+#endif
+
 #ifndef DEF_USER
 	#define DEF_USER "user"
 #endif
@@ -90,6 +94,7 @@ typedef struct pam_totp_opts_ {
 	const char *user_field;
 	const char *token_field;
 	const char *hostname;
+	const char *auth_domain;
 	
 	char *configfile;
 	bool use_authtok;
@@ -103,6 +108,12 @@ typedef struct pam_totp_opts_ {
 	const void *user;
 	const void *token;
 } pam_totp_opts;
+
+typedef struct post_args_ {
+	char *key;
+	char *arg;
+	struct post_args *next;
+} post_args;
 
 typedef struct curl_result_ {
 	char* data;
