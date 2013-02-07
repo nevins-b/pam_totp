@@ -47,7 +47,6 @@ int get_password(pam_handle_t* pamh, pam_totp_opts* opts)
 	if( NULL != p && strlen(p) > 0)
 	{
 		opts->token = p;
-		free(p);
 		return PAM_SUCCESS;
 	}
 	free(p);
