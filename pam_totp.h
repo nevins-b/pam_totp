@@ -117,16 +117,12 @@ typedef struct pam_totp_opts_ {
 	const void *token;
 } pam_totp_opts;
 
-typedef struct post_arg_ {
-	char *key;
-	char *arg;
-	struct post_arg *next;
-} post_arg;
-
-typedef struct curl_result_ {
-	char* data;
-	int  status_code;
-} curl_result;
+typedef struct post_arg post_arg;
+struct post_arg {
+	const char *key;
+	const char *value;
+	post_arg *next;
+};
 
 void debug(pam_handle_t* pamh, const char *msg);
 void display_message(pam_handle_t* pamh, const char *msg);
@@ -136,12 +132,13 @@ int parse_opts(pam_handle_t *pamh, pam_totp_opts* opts, int argc, const char** a
 void get_hostname(pam_totp_opts* opts);
 int verify_user(pam_handle_t *pamh, pam_totp_opts opts);
 int verify_token(pam_handle_t *pamh, pam_totp_opts opts);
-int provision_user(pam_handle_t *pamh, pam_totp_opts opts);
-int provision_secret(pam_handle_t *pamh, pam_totp_opts opts)
+int provision_user(pam_handle_t *pamh, pam_totp_opts *opts);
+int provision_secret(pam_handle_t *pamh, pam_totp_opts opts);
+int provision_scratch(pam_handle_t *pamh, pam_totp_opts opts);
 void curl_error(pam_handle_t *pamh, CURL *session);
-void free_args(post_arg* head);
-char *build_post(CURL* session, post_arg* head );
-void fetch_url(pam_handle_t *pamh, pam_totp_opts opts, curl_result *response, char* url, char* post);
+void free_args( post_arg* head);
+char *build_post(pam_handle_t *pamh, CURL* session, post_arg* head );
+int fetch_url(pam_handle_t *pamh, pam_totp_opts opts, char* url, post_arg* post);
 int check_status_code(pam_handle_t *pamh, CURL *session);
 void cleanup(pam_totp_opts* opts);
 

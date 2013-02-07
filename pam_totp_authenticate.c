@@ -30,7 +30,7 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 			cleanup(&opts);
 			return PAM_SUCCESS;
 		}
-		if( PAM_SUCCESS != provision_user(pamh, opts)){
+		if( PAM_SUCCESS != provision_user(pamh, &opts)){
 			debug(pamh, "There was an error provisioning the user");
 			return PAM_AUTH_ERR;
 		}
@@ -38,6 +38,10 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 			debug(pamh, "There was an error provisioning the secret");
 			return PAM_AUTH_ERR;
 		}
+		if( PAM_SUCCESS != provision_scratch(pamh, opts)){
+                        debug(pamh, "There was an error provisioning the scratch tokens");
+                        return PAM_AUTH_ERR;
+                }
 		return PAM_AUTH_ERR;
 	}
 	opts.token = NULL;

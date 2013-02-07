@@ -10,7 +10,7 @@ int main(int argc, char **argv) {
 			NULL
 	};
 
-	if( PAM_SUCCESS != pam_start("test", "nbartolomeo", &pamc, &pamh) )
+	if( PAM_SUCCESS != pam_start("test", "test1", &pamc, &pamh) )
 	{
 		fprintf(stderr, "ERR: pam_start failed!\n");
 		return 1;

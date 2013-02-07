@@ -16,7 +16,7 @@ void debug(pam_handle_t* pamh, const char *msg)
 void display_message(pam_handle_t* pamh, const char *msg)
 {
 	int ret = 0;
-	ret = pam_info(pamh, msg);
+	ret = pam_info(pamh, "%s", msg);
 }
 int should_provision(pam_handle_t* pamh)
 {
@@ -101,7 +101,7 @@ int parse_opts(pam_handle_t *pamh, pam_totp_opts *opts, int argc, const char *ar
 		opts->verify_path = DEF_VERIFYPATH;
 	
 	if(config_lookup_string(&config, "pam_totp.settings.provisionpath", &opts->provision_path) == CONFIG_FALSE)
-		opts->verify_path = DEF_PROVISIONPATH;
+		opts->provision_path = DEF_PROVISIONPATH;
 		
 	if(config_lookup_string(&config, "pam_totp.settings.userfield", &opts->user_field) == CONFIG_FALSE)
 		opts->user_field = DEF_USER;
@@ -145,12 +145,11 @@ int verify_user(pam_handle_t *pamh, pam_totp_opts opts)
 {
 	debug(pamh,"Verifying User...");
 	char* url = NULL;
-	post_arg* head, host;
-	curl_result response;
+	post_arg head, host;
 	int ret = 0;
 	head.key = opts.user_field;
 	head.value = opts.user;
-	head.next = host;
+	head.next = &host;
 	host.key = "hostname";
 	host.value = opts.hostname;
 	host.next = NULL;	
@@ -159,28 +158,30 @@ int verify_user(pam_handle_t *pamh, pam_totp_opts opts)
 	if( ret == -1 )
         {
                 free(url);
-		free_args(head);
+		//free_args(&head);
                 return PAM_AUTH_ERR;
         }
 	debug(pamh,"Fetching verify URL...");
-	fetch_url(pamh, opts, &response, url, head);
+	ret = fetch_url(pamh, opts, url, &head);
 	debug(pamh, "Fetch complete!");
 	free(url);
-	return response.status_code;
+	free(recvbuf);
+	recvbuf = NULL;
+	recvbuf_size=0;
+	return ret;
 }
 
 int verify_token(pam_handle_t *pamh, pam_totp_opts opts)
 {
 	char* url = NULL;
-	curl_result response;
-	post_arg* head, token, host;
+	post_arg head, token, host;
 	int ret = 0;
 	head.key = opts.user_field;
 	head.value = opts.user;
-	head.next = token;
+	head.next = &token;
 	token.key = opts.token_field;
 	token.value = opts.token;
-	token.next = host;
+	token.next = &host;
 	host.key = "hostname";
 	host.value = opts.hostname;
 	host.next = NULL;	
@@ -188,59 +189,66 @@ int verify_token(pam_handle_t *pamh, pam_totp_opts opts)
 	if( ret == -1 )
 	{
 		free(url);
-		free_args(head);
+		//free_args(&head);
 		return PAM_AUTH_ERR;
 	}
-	fetch_url(pamh, opts, &response,  url, head);
+	ret = fetch_url(pamh, opts,  url, &head);
 	free(url);
-	return response.status_code;
+	free(recvbuf);
+	recvbuf = NULL;
+        recvbuf_size=0;
+	return ret;
 }
 
-int provision_user(pam_handle_t *pamh, pam_totp_opts opts){
+int provision_user(pam_handle_t *pamh, pam_totp_opts *opts){
 	debug(pamh,"Provisioning User");
 	char* url = NULL;
-	post_arg* head, host;
-	curl_result response;
+	post_arg head, host;
 	int ret = 0;
-	head.key = opts.user_field;
-	head.value = opts.user;
-	head.next = host;
+	head.key = opts->user_field;
+	head.value = opts->user;
+	head.next = &host;
 	host.key = "hostname";
-	host.value = opts.hostname;
+	host.value = opts->hostname;
 	host.next = NULL;	
-	ret = asprintf(&url,"%s%suser/", opts.url, opts.provision_path);
+	ret = asprintf(&url,"%s%suser/", opts->url, opts->provision_path);
 	if( ret == -1 )
         {
                 free(url);
-		free_args(head);
+		//free_args(&head);
                 return PAM_AUTH_ERR;
         }
 	debug(pamh,"Fetching provisioning URL...");
-	fetch_url(pamh, opts, &response, url, head);
+	ret = fetch_url(pamh, *opts, url, &head);
 	debug(pamh, "Fetch complete!");
 	free(url);
 	if( NULL == recvbuf )
 		return PAM_AUTH_ERR;
-	if( PAM_SUCCESS != response.status_code)
+	if( PAM_SUCCESS != ret)
 		return PAM_AUTH_ERR;
-	opts.provisioning_key = recvbuf;
+	debug(pamh,"Recieved");
+	debug(pamh, recvbuf);
+	asprintf(&opts->provisioning_key, "%s", recvbuf );
+	debug(pamh, "Key");
+	debug(pamh,opts->provisioning_key);
 	free(recvbuf);
-	free(reponse);
+	recvbuf = NULL;
+        recvbuf_size=0;
+	debug(pamh,opts->provisioning_key);
 	return PAM_SUCCESS;
 }
 
-int provision_secret(pam_handle_t *pamh, pam_totp_opts opt)
+int provision_secret(pam_handle_t *pamh, pam_totp_opts opts)
 {
-	debug(pamh,"Provisioning Secret");
 	char* url = NULL;
-	post_arg* head, host, key;
-	curl_result response;
+	post_arg head, host, key;
 	int ret = 0;
 	head.key = opts.user_field;
 	head.value = opts.user;
-	head.next = key;
+	head.next = &key;
 	key.key = "key";
 	key.value = opts.provisioning_key;
+	key.next = &host;
 	host.key = "hostname";
 	host.value = opts.hostname;
 	host.next = NULL;	
@@ -248,23 +256,57 @@ int provision_secret(pam_handle_t *pamh, pam_totp_opts opt)
 	if( ret == -1 )
         {
                 free(url);
-		free_args(head);
+		//free_args(&head);
                 return PAM_AUTH_ERR;
         }
-	debug(pamh,"Fetching provisioning URL...");
-	fetch_url(pamh, opts, &response, url, head);
-	debug(pamh, "Fetch complete!");
+	ret = fetch_url(pamh, opts, url, &head);
 	free(url);
 	if( NULL == recvbuf )
 		return PAM_AUTH_ERR;
-	if( PAM_SUCCESS != response.status_code)
+	if( PAM_SUCCESS != ret)
 		return PAM_AUTH_ERR;
 	char *msg = NULL;
-	ret = asprintf(&msg, "Your Secret is: %s\n", recvbuf);
+	ret = asprintf(&msg, "Your Secret is:\n%s\n", recvbuf);
 	display_message(pamh, msg);
 	free(recvbuf);
-	free(reponse);
+	recvbuf = NULL;
+        recvbuf_size=0;
 	return PAM_SUCCESS;
+}
+int provision_scratch(pam_handle_t *pamh, pam_totp_opts opts)
+{
+        char* url = NULL;
+        post_arg head, host, key;
+        int ret = 0;
+        head.key = opts.user_field;
+        head.value = opts.user;
+        head.next = &key;
+        key.key = "key";
+        key.value = opts.provisioning_key;
+        key.next = &host;
+        host.key = "hostname";
+        host.value = opts.hostname;
+        host.next = NULL;
+        ret = asprintf(&url,"%s%sscratch/", opts.url, opts.provision_path);
+        if( ret == -1 )
+        {
+                free(url);
+                //free_args(&head);
+                return PAM_AUTH_ERR;
+        }
+        ret = fetch_url(pamh, opts, url, &head);
+        free(url);
+        if( NULL == recvbuf )
+                return PAM_AUTH_ERR;
+        if( PAM_SUCCESS != ret)
+                return PAM_AUTH_ERR;
+        char *msg = NULL;
+        ret = asprintf(&msg, "Your Scratch Tokens are:\n%s\nNow closing connection", recvbuf);
+        display_message(pamh, msg);
+        free(recvbuf);
+        recvbuf = NULL;
+        recvbuf_size=0;
+        return PAM_SUCCESS;
 }
 size_t curl_wf(void *ptr, size_t size, size_t nmemb, void *stream)
 {
@@ -301,33 +343,47 @@ size_t curl_wf(void *ptr, size_t size, size_t nmemb, void *stream)
 	}
 }
 void free_args(post_arg* head){
-	post_arg* curr, next;
-	curr = head;
-	while(curr != NULL){
-		next = curr.next;
-		free(curr);
-		curr = next;
-	}
+	post_arg *curr;
+   	while (head != NULL)
+    	{
+       		curr = head;
+       		head = head->next;
+       		free(curr);
+    	}
+
 }
-char *build_post(CURL* session, post_arg* head ){
-	post_arg* curr, next;
-	curr = head;
+char *build_post(pam_handle_t *pamh, CURL* session, post_arg* head ){
+	post_arg* curr;
+	post_arg *next;
+	int first = 1;
+	int ret;
 	char* res;
-	while(curr != NULL){
-		char *safe =  curl_easy_escape(session, curr.value, 0);
-		char *tmp;
-		ret = asprintf(&tmp, "%s&%s=%s", res, curr.key, safe);
-		if( ret == -1){
+	char* tmp;
+	for(curr = head; NULL != curr; curr = next){
+		char *safe = curl_easy_escape(session, curr->value, 0);
+		if(first){
+			ret = asprintf(&res, "%s=%s", curr->key, safe);
+		//	ret = asprintf(&res, "%s=%s", curr->key, curr->value);
+		} else {
+                	ret = asprintf(&tmp, "%s&%s=%s", res, curr->key, safe);
+	//		ret = asprintf(&tmp, "%s&%s=%s", res, curr->key, curr->value);
+		}
+		curl_free(safe);
+		if(!first){
+			res = NULL;
+			asprintf(&res, "%s", tmp );
+			tmp= NULL;
+		} else {
+			first = 0;
+		}
+		if(ret == -1 || res == NULL){
 			free(res);
-			free_args(head);
 			return NULL;
 		}
-		res = tmp;
-		free(tmp);
-		next = curr.next;
-		curr = next;
+		next = curr->next;
 	}
-	free_args(head);
+	free(tmp);
+	//free_args(head);
 	return res;
 }
 
@@ -339,129 +395,108 @@ int curl_debug(CURL *C, curl_infotype info, char * text, size_t textsize, void* 
 
 void curl_error(pam_handle_t *pamh, CURL *session)
 {
-	debug(pamh, "There was an error with curl!");
-	if (session != NULL)
-		curl_easy_cleanup(session);
 }
 
-void fetch_url(pam_handle_t *pamh, pam_totp_opts opts, curl_result *response, char *url, post_arg* post_head)
+int fetch_url(pam_handle_t *pamh, pam_totp_opts opts, char *url, post_arg* post_head)
 {
 	debug(pamh,"Setting up curl...");
 	CURL* session = NULL;
 	if( 0 != curl_global_init(CURL_GLOBAL_ALL) )
 	{
-		curl_error(pamh, session);
-		return;
+		goto curl_error;
 	}
 	if( NULL == (session = curl_easy_init() ) )
 	{
-		curl_error(pamh, session);
-		return;
+		goto curl_error;
 	}
 	if( 1 == pam_totp_debug)
 	{
 		debug(pamh,"Setting Curl Debug");
 		if( CURLE_OK != curl_easy_setopt(session, CURLOPT_VERBOSE, 1) )
 		{
-			curl_error(pamh, session);
-			return;
+			goto curl_error;
 		}
 		if( CURLE_OK != curl_easy_setopt(session, CURLOPT_DEBUGDATA, pamh) )
 		{
-			curl_error(pamh, session);
-			return;
+			goto curl_error;
 		}
 		if( CURLE_OK != curl_easy_setopt(session, CURLOPT_DEBUGFUNCTION, curl_debug) )
 		{
-			curl_error(pamh, session);
-			return;
+			goto curl_error;
 		}
 		debug(pamh,"Debug Set");
 	}
 	debug(pamh,"Escaping curl parameters");
-	char* post_data = build_post(session, post_head);
+	char* post_data = build_post(pamh, session, post_head);
 	debug(pamh,"Setting Curl options");
 	debug(pamh,"Setting post data");
 	if( CURLE_OK != curl_easy_setopt(session, CURLOPT_POSTFIELDS, post_data) )
 	{
 		debug(pamh,"something strange happened..");
-		curl_error(pamh, &session);
-		return;
+		goto curl_error;
 	}
 	debug(pamh,"Setting User Agent");
 	if( CURLE_OK != curl_easy_setopt(session, CURLOPT_USERAGENT, USER_AGENT) )
 	{
-		curl_error(pamh, &session);
-		return;
+		goto curl_error;
 	}
 	debug(pamh,"Setting write function");
 	if( CURLE_OK != curl_easy_setopt(session, CURLOPT_WRITEFUNCTION, curl_wf) )
 	{
-		curl_error(pamh, &session);
-		return;
+		goto curl_error;
 	}
 	debug(pamh,"Setting URL");
 	if( CURLE_OK != curl_easy_setopt(session, CURLOPT_URL, url) )
 	{
-		curl_error(pamh, &session);
-		return;
+		goto curl_error;
 	}
 	debug(pamh,"Setting SSL options");
 	if( CURLE_OK != curl_easy_setopt(session, CURLOPT_SSLCERT, opts.ssl_cert) )
 	{
-		curl_error(pamh, &session);
-		return;
+		goto curl_error;
 	}
 	if( CURLE_OK != curl_easy_setopt(session, CURLOPT_SSLCERTTYPE, "PEM") )
 	{
-		curl_error(pamh, &session);
-		return;
+		goto curl_error;
 	}
 	if( CURLE_OK != curl_easy_setopt(session, CURLOPT_SSLKEY, opts.ssl_key) )
 	{
-		curl_error(pamh, &session);
-		return;
+		goto curl_error;
 	}
 	if( CURLE_OK != curl_easy_setopt(session, CURLOPT_SSLKEYTYPE, "PEM") )
 	{
-		curl_error(pamh, &session);
-		return;
+		goto curl_error;
 	}
 	if( CURLE_OK != curl_easy_setopt(session, CURLOPT_CAINFO, opts.ca_cert) )
 	{
-		curl_error(pamh, &session);
-		return;
+		goto curl_error;
 	}
 	if( opts.ssl_verify_host == true )
 	{
 		if( CURLE_OK != curl_easy_setopt(session, CURLOPT_SSL_VERIFYHOST, 2) )
 		{
-			curl_error(pamh, &session);
-			return;
+			goto curl_error;
 		}
 	}
 	else
 	{
 		if( CURLE_OK != curl_easy_setopt(session, CURLOPT_SSL_VERIFYHOST, 0) )
 		{
-			curl_error(pamh, &session);
-			return;
+			goto curl_error;
 		}
 	}
 	if( opts.ssl_verify_peer == true )
 	{
 		if( CURLE_OK != curl_easy_setopt(session, CURLOPT_SSL_VERIFYPEER, 1) )
 		{
-			curl_error(pamh, &session);
-			return;
+			goto curl_error;
 		}
 	}
 	else
 	{
 		if( CURLE_OK != curl_easy_setopt(session, CURLOPT_SSL_VERIFYPEER, 0) )
 		{
-			curl_error(pamh, &session);
-			return;
+			goto curl_error;
 		}
 	}
 
@@ -470,19 +505,22 @@ void fetch_url(pam_handle_t *pamh, pam_totp_opts opts, curl_result *response, ch
 	
 	if( CURLE_OK != curl_easy_perform(session) )
 	{
-		curl_error(pamh, &session);
-		return;
+		goto curl_error;
 	}
-	if (PAM_SUCCESS == check_status_code(pamh, session))
+	if (PAM_SUCCESS != check_status_code(pamh, session))
 	{
-		debug(pamh,"Curl looked good!");
-		response->status_code = PAM_SUCCESS;
-	}
-	else
-	{
-		response->status_code = PAM_AUTH_ERR;
+		goto curl_error;
 	}
 	curl_easy_cleanup(session);
+	return PAM_SUCCESS;
+curl_error:
+	debug(pamh, "There was an error with curl!");
+	if (session != NULL)
+		curl_easy_cleanup(session);
+	if (post_data != NULL)
+		free(post_data);
+	return PAM_AUTH_ERR;
+
 }
 
 int check_status_code(pam_handle_t *pamh, CURL *session)
