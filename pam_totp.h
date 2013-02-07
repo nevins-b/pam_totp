@@ -137,6 +137,7 @@ int provision_secret(pam_handle_t *pamh, pam_totp_opts opts);
 int provision_scratch(pam_handle_t *pamh, pam_totp_opts opts);
 void curl_error(pam_handle_t *pamh, CURL *session);
 void free_args( post_arg* head);
+char *sanitize_url(pam_handle_t *pamh, CURL* session, char* url);
 char *build_post(pam_handle_t *pamh, CURL* session, post_arg* head );
 int fetch_url(pam_handle_t *pamh, pam_totp_opts opts, char* url, post_arg* post);
 int check_status_code(pam_handle_t *pamh, CURL *session);

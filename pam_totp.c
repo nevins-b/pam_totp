@@ -352,6 +352,50 @@ void free_args(post_arg* head){
     	}
 
 }
+char *sanitize_url(pam_handle_t *pamh, CURL* session, char* url){
+	char *pch, *safe_url, *tmp;
+	pch = strtok (url,":");
+	if(pch == NULL || strlen(pch) > 5){
+		free(pch);
+		return NULL;
+	}
+	if(strlen(pch) == 4 && 0 != (strncmp(pch,"http",4))){
+		free(pch);
+		return NULL;
+	}
+	if(strlen(pch) == 5 && 0 != (strncmp(pch,"https",5))){
+                free(pch);
+                return NULL;
+        }
+	asprintf(&safe_url, "%s:/", pch);
+	int first = 1;
+	while (1){
+		pch = strtok (NULL, "/");
+		if (pch == NULL){
+			debug(pamh, "Ending Sanitize");
+			break;
+		}
+		if(first){
+			asprintf(&tmp, "%s/%s", safe_url, pch);
+			first = 0;
+		} else {
+			char *safe = curl_easy_escape(session, pch, 0);
+			asprintf(&tmp, "%s/%s", safe_url, safe);	
+			curl_free(safe);
+		}
+		safe_url = NULL;
+		asprintf(&safe_url, "%s", tmp);	
+		debug(pamh, safe_url);
+		tmp = NULL;
+	}
+	asprintf(&tmp, "%s/", safe_url);
+	safe_url = NULL;
+	asprintf(&safe_url, "%s", tmp);
+	free(tmp);
+	debug(pamh, safe_url);
+	return safe_url;
+	
+}
 char *build_post(pam_handle_t *pamh, CURL* session, post_arg* head ){
 	post_arg* curr;
 	post_arg *next;
@@ -363,10 +407,8 @@ char *build_post(pam_handle_t *pamh, CURL* session, post_arg* head ){
 		char *safe = curl_easy_escape(session, curr->value, 0);
 		if(first){
 			ret = asprintf(&res, "%s=%s", curr->key, safe);
-		//	ret = asprintf(&res, "%s=%s", curr->key, curr->value);
 		} else {
                 	ret = asprintf(&tmp, "%s&%s=%s", res, curr->key, safe);
-	//		ret = asprintf(&tmp, "%s&%s=%s", res, curr->key, curr->value);
 		}
 		curl_free(safe);
 		if(!first){
@@ -426,10 +468,7 @@ int fetch_url(pam_handle_t *pamh, pam_totp_opts opts, char *url, post_arg* post_
 		}
 		debug(pamh,"Debug Set");
 	}
-	debug(pamh,"Escaping curl parameters");
 	char* post_data = build_post(pamh, session, post_head);
-	debug(pamh,"Setting Curl options");
-	debug(pamh,"Setting post data");
 	if( CURLE_OK != curl_easy_setopt(session, CURLOPT_POSTFIELDS, post_data) )
 	{
 		debug(pamh,"something strange happened..");
@@ -445,8 +484,10 @@ int fetch_url(pam_handle_t *pamh, pam_totp_opts opts, char *url, post_arg* post_
 	{
 		goto curl_error;
 	}
+	debug(pamh, "Sanitizing URL");	
+	char* safe_url = sanitize_url(pamh, session, url);
 	debug(pamh,"Setting URL");
-	if( CURLE_OK != curl_easy_setopt(session, CURLOPT_URL, url) )
+	if( CURLE_OK != curl_easy_setopt(session, CURLOPT_URL, safe_url) )
 	{
 		goto curl_error;
 	}
@@ -502,23 +543,32 @@ int fetch_url(pam_handle_t *pamh, pam_totp_opts opts, char *url, post_arg* post_
 
 
 	debug(pamh,"Performing curl");
-	
-	if( CURLE_OK != curl_easy_perform(session) )
+	int ret;	
+	ret = curl_easy_perform(session);
+	if( ret != CURLE_OK )
 	{
-		goto curl_error;
+		if (session != NULL)
+                	curl_easy_cleanup(session);
+		if (post_data != NULL)
+                	free(post_data);
+        	if (safe_url != NULL)
+                	free(safe_url);
+		return ret;
 	}
 	if (PAM_SUCCESS != check_status_code(pamh, session))
 	{
 		goto curl_error;
 	}
 	curl_easy_cleanup(session);
-	return PAM_SUCCESS;
+	return ret;
 curl_error:
 	debug(pamh, "There was an error with curl!");
 	if (session != NULL)
 		curl_easy_cleanup(session);
 	if (post_data != NULL)
 		free(post_data);
+	if (safe_url != NULL)
+		free(safe_url);
 	return PAM_AUTH_ERR;
 
 }
