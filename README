@@ -1,4 +1,4 @@
-pam_totp - Centralized two-factor authentication built on Google Authenticator 
+pam_totp - Centralized two-factor authentication compatable with Google Authenticator.
 
 This software is opensource software licensed under the GNU Public License version 2.
 This software is based on the pam_url module originally created bySascha Thomas Spreitzer <sspreitzer (at) fedoraproject.org>.
@@ -15,9 +15,12 @@ auth required pam_totp.so [debug] [use_authtok] [config=/etc/pam_totp.conf]
 [...]
 
 This line forms the following url encoded POST data:
-user=<username>&passwd=<pass>&mode=PAM_AUTH&hostname=<hostname>t&do=auth
-It should return either 200 OK with PSK in the body or 403 Forbidden if unsuccessful.
+user=<username>&passwd=<pass>&hostname=<hostname>
+It should return either 200 OK with PSK in the body or 400 Bad Request if unsuccessful.
+
+[Features]
+- Google Authenticator compatable OTP authentication
+- Inline provisiong for new users
 
 [TODO]
 - Code audit
-- Inline provisioning for users not recognised by the totp server
