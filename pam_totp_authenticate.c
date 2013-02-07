@@ -75,8 +75,7 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 			pam_set_item(pamh, PAM_AUTHTOK, opts.token);
 		}
 	}
-
-	if( PAM_SUCCESS != verify_token(pamh, opts) )
+	if( PAM_SUCCESS !=   verify_token(pamh, opts))
 	{
 		debug(pamh, "There was an error verifying user token.");
 		cleanup(&opts);

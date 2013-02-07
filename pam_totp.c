@@ -15,8 +15,7 @@ void debug(pam_handle_t* pamh, const char *msg)
 }
 void display_message(pam_handle_t* pamh, const char *msg)
 {
-	int ret = 0;
-	ret = pam_info(pamh, "%s", msg);
+	pam_info(pamh, "%s", msg);
 }
 int should_provision(pam_handle_t* pamh)
 {
@@ -26,10 +25,13 @@ int should_provision(pam_handle_t* pamh)
 	if (NULL != res)
 	{
 		if(strlen(res) == 0)
+			free(res);
 			return PAM_SUCCESS;
 		if( strlen(res) > 0 && ((strncmp(res,"y", 1)) == 0 || (strncmp(res,"Y", 1)) == 0))
+			free(res);
 			return PAM_SUCCESS;
 	}
+	free(res);
 	return PAM_AUTH_ERR;
 }
 int get_password(pam_handle_t* pamh, pam_totp_opts* opts)
@@ -45,12 +47,11 @@ int get_password(pam_handle_t* pamh, pam_totp_opts* opts)
 	if( NULL != p && strlen(p) > 0)
 	{
 		opts->token = p;
+		free(p);
 		return PAM_SUCCESS;
 	}
-	else
-	{
-		return PAM_AUTH_ERR;
-	}
+	free(p);
+	return PAM_AUTH_ERR;
 }
 
 
@@ -129,7 +130,7 @@ int parse_opts(pam_handle_t *pamh, pam_totp_opts *opts, int argc, const char *ar
 
 	if(config_lookup_bool(&config, "pam_totp.ssl.verify_peer", (int *)&opts->ssl_verify_peer) == CONFIG_FALSE)
 		opts->ssl_verify_peer = true;
-
+	//config_destroy(&config);
 	return PAM_SUCCESS;
 }
 
@@ -158,7 +159,6 @@ int verify_user(pam_handle_t *pamh, pam_totp_opts opts)
 	if( ret == -1 )
         {
                 free(url);
-		//free_args(&head);
                 return PAM_AUTH_ERR;
         }
 	debug(pamh,"Fetching verify URL...");
@@ -168,6 +168,8 @@ int verify_user(pam_handle_t *pamh, pam_totp_opts opts)
 	free(recvbuf);
 	recvbuf = NULL;
 	recvbuf_size=0;
+	if(ret == CURLE_OK || ret == PAM_SUCCESS)
+		return PAM_SUCCESS;
 	return ret;
 }
 
@@ -189,7 +191,6 @@ int verify_token(pam_handle_t *pamh, pam_totp_opts opts)
 	if( ret == -1 )
 	{
 		free(url);
-		//free_args(&head);
 		return PAM_AUTH_ERR;
 	}
 	ret = fetch_url(pamh, opts,  url, &head);
@@ -197,11 +198,19 @@ int verify_token(pam_handle_t *pamh, pam_totp_opts opts)
 	free(recvbuf);
 	recvbuf = NULL;
         recvbuf_size=0;
+	if(ret == CURLE_OK || ret == PAM_SUCCESS){
+		debug(pamh, "Returning OK");
+		return PAM_SUCCESS;
+	}
+	char *res;
+	asprintf(&res, "%d", ret);
+	debug(pamh, "Returning");
+	debug(pamh, res);
+	free(res);
 	return ret;
 }
 
 int provision_user(pam_handle_t *pamh, pam_totp_opts *opts){
-	debug(pamh,"Provisioning User");
 	char* url = NULL;
 	post_arg head, host;
 	int ret = 0;
@@ -215,26 +224,18 @@ int provision_user(pam_handle_t *pamh, pam_totp_opts *opts){
 	if( ret == -1 )
         {
                 free(url);
-		//free_args(&head);
                 return PAM_AUTH_ERR;
         }
-	debug(pamh,"Fetching provisioning URL...");
 	ret = fetch_url(pamh, *opts, url, &head);
-	debug(pamh, "Fetch complete!");
 	free(url);
 	if( NULL == recvbuf )
 		return PAM_AUTH_ERR;
-	if( PAM_SUCCESS != ret)
+	if( CURLE_OK != ret)
 		return PAM_AUTH_ERR;
-	debug(pamh,"Recieved");
-	debug(pamh, recvbuf);
 	asprintf(&opts->provisioning_key, "%s", recvbuf );
-	debug(pamh, "Key");
-	debug(pamh,opts->provisioning_key);
 	free(recvbuf);
 	recvbuf = NULL;
         recvbuf_size=0;
-	debug(pamh,opts->provisioning_key);
 	return PAM_SUCCESS;
 }
 
@@ -256,14 +257,13 @@ int provision_secret(pam_handle_t *pamh, pam_totp_opts opts)
 	if( ret == -1 )
         {
                 free(url);
-		//free_args(&head);
                 return PAM_AUTH_ERR;
         }
 	ret = fetch_url(pamh, opts, url, &head);
 	free(url);
 	if( NULL == recvbuf )
 		return PAM_AUTH_ERR;
-	if( PAM_SUCCESS != ret)
+	if( CURLE_OK != ret)
 		return PAM_AUTH_ERR;
 	char *msg = NULL;
 	ret = asprintf(&msg, "Your Secret is:\n%s\n", recvbuf);
@@ -291,14 +291,13 @@ int provision_scratch(pam_handle_t *pamh, pam_totp_opts opts)
         if( ret == -1 )
         {
                 free(url);
-                //free_args(&head);
                 return PAM_AUTH_ERR;
         }
         ret = fetch_url(pamh, opts, url, &head);
         free(url);
         if( NULL == recvbuf )
                 return PAM_AUTH_ERR;
-        if( PAM_SUCCESS != ret)
+        if( CURLE_OK != ret)
                 return PAM_AUTH_ERR;
         char *msg = NULL;
         ret = asprintf(&msg, "Your Scratch Tokens are:\n%s\nNow closing connection", recvbuf);
@@ -342,16 +341,6 @@ size_t curl_wf(void *ptr, size_t size, size_t nmemb, void *stream)
 		return(size*nmemb);
 	}
 }
-void free_args(post_arg* head){
-	post_arg *curr;
-   	while (head != NULL)
-    	{
-       		curr = head;
-       		head = head->next;
-       		free(curr);
-    	}
-
-}
 char *sanitize_url(pam_handle_t *pamh, CURL* session, char* url){
 	char *pch, *safe_url, *tmp;
 	pch = strtok (url,":");
@@ -378,6 +367,7 @@ char *sanitize_url(pam_handle_t *pamh, CURL* session, char* url){
 		if(first){
 			asprintf(&tmp, "%s/%s", safe_url, pch);
 			first = 0;
+			free(safe_url);
 		} else {
 			char *safe = curl_easy_escape(session, pch, 0);
 			asprintf(&tmp, "%s/%s", safe_url, safe);	
@@ -385,16 +375,13 @@ char *sanitize_url(pam_handle_t *pamh, CURL* session, char* url){
 		}
 		safe_url = NULL;
 		asprintf(&safe_url, "%s", tmp);	
-		debug(pamh, safe_url);
 		tmp = NULL;
 	}
 	asprintf(&tmp, "%s/", safe_url);
 	safe_url = NULL;
 	asprintf(&safe_url, "%s", tmp);
 	free(tmp);
-	debug(pamh, safe_url);
 	return safe_url;
-	
 }
 char *build_post(pam_handle_t *pamh, CURL* session, post_arg* head ){
 	post_arg* curr;
@@ -425,7 +412,6 @@ char *build_post(pam_handle_t *pamh, CURL* session, post_arg* head ){
 		next = curr->next;
 	}
 	free(tmp);
-	//free_args(head);
 	return res;
 }
 
@@ -559,6 +545,7 @@ int fetch_url(pam_handle_t *pamh, pam_totp_opts opts, char *url, post_arg* post_
 	{
 		goto curl_error;
 	}
+	debug(pamh, "No Errors with Curl!");
 	curl_easy_cleanup(session);
 	return ret;
 curl_error:
